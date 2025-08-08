@@ -1,171 +1,149 @@
-from fastapi import FastAPI, HTTPException # Added HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List
 import uvicorn
-import asyncio
 import httpx
 import os
 import json
+import logging
+from dotenv import load_dotenv
 
-# Initialize the FastAPI app
-app = FastAPI(
-    title="LearnFlow API",
-    description="Backend API for the LearnFlow educational app.",
+# Load environment variables
+load_dotenv()
+
+# Initialize logging
+logging.basicConfig(
+    filename='learnflow.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-# Set up CORS middleware to allow requests from the React frontend
-origins = [
-    "http://localhost:3000", # The address where your React app is running
-]
+app = FastAPI(
+    title="LearnFlow API (OpenRouter Edition)",
+    version="1.0.0",
+)
 
+# CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
+    allow_origins=["*"],  # Adjust for production
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Pydantic model for a single quiz question
+# --- Constants ---
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+MODEL_NAME = "deepseek/deepseek-chat-v3-0324:free"
+
+# --- Pydantic Models ---
 class QuizQuestion(BaseModel):
     question: str
     options: List[str]
     correctAnswer: str
 
-# Pydantic model for a single video recommendation
 class VideoRecommendation(BaseModel):
     title: str
     url: str
 
-# Pydantic model for the incoming request body
 class QueryRequest(BaseModel):
     query: str
 
-# Pydantic model for the complete response body, matching the frontend's expectations
 class FullContentResponse(BaseModel):
     explanation: str
-    examples: str
+    examples: List[str]
     videos: List[VideoRecommendation]
     quiz: List[QuizQuestion]
 
-# Set up Gemini API configuration
-# You can set this in your environment variables or a .env file
-# NOTE: Replace 'your_api_key' with your actual API key
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "your_api_key")
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent"
+# --- Helper Functions ---
+async def call_openrouter(prompt: str) -> dict:
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "http://localhost:3000",  # Required by OpenRouter
+        "X-Title": "LearnFlow"
+    }
+    
+    payload = {
+        "model": MODEL_NAME,
+        "messages": [
+            {"role": "system", "content": "You are an expert tutor. Respond only with valid JSON matching the schema."},
+            {"role": "user", "content": prompt}
+        ],
+        "response_format": {"type": "json_object"}
+    }
 
-# JSON schema for the structured response from the Gemini API
-GEMINI_RESPONSE_SCHEMA = {
-    "type": "OBJECT",
-    "properties": {
-        "explanation": {"type": "STRING"},
-        "examples": {"type": "STRING"},
-        "videos": {
-            "type": "ARRAY",
-            "items": {
-                "type": "OBJECT",
-                "properties": {
-                    "title": {"type": "STRING"},
-                    "url": {"type": "STRING"}
-                },
-                "required": ["title", "url"]
-            }
-        },
-        "quiz": {
-            "type": "ARRAY",
-            "items": {
-                "type": "OBJECT",
-                "properties": {
-                    "question": {"type": "STRING"},
-                    "options": {
-                        "type": "ARRAY",
-                        "items": {"type": "STRING"}
-                    },
-                    "correctAnswer": {"type": "STRING"}
-                },
-                "required": ["question", "options", "correctAnswer"]
-            }
-        }
-    },
-    "required": ["explanation", "examples", "videos", "quiz"]
-}
-
-# Exponential backoff retry for API calls
-async def call_with_retries(client, payload, headers, max_retries=5):
-    for i in range(max_retries):
+    async with httpx.AsyncClient() as client:
         try:
-            response = await client.post(GEMINI_API_URL, headers=headers, json=payload, params={"key": GEMINI_API_KEY})
+            response = await client.post(
+                OPENROUTER_URL,
+                headers=headers,
+                json=payload,
+                timeout=30.0
+            )
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
-            if e.response.status_code == 429:
-                delay = 2 ** i
-                print(f"Rate limit hit. Retrying in {delay} seconds...")
-                await asyncio.sleep(delay)
-            else:
-                raise
-    raise Exception("Failed to get response from Gemini API after multiple retries.")
+            logging.error(f"OpenRouter API error: {e.response.text}")
+            raise HTTPException(502, "AI service unavailable")
 
-# API endpoint for generating a complete response
+# --- API Endpoints ---
 @app.post("/api/v1/generate", response_model=FullContentResponse)
 async def generate_content(request: QueryRequest):
     """
-    Generates a complete explanation, examples, videos, and quiz for a given query
-    by calling the Gemini API.
+    Generate educational content using DeepSeek via OpenRouter
     """
-    if GEMINI_API_KEY == "your_api_key":
-        # Handle case where API key is not set
-        raise HTTPException(status_code=500, detail="Gemini API key not configured.")
-
     prompt = f"""
-    You are an educational assistant named LearnFlow. For the user's query, provide a comprehensive
-    learning package in a structured JSON format. Your response must include:
-    1.  A detailed explanation of the concept in Markdown format, with LaTeX for math formulas.
-    2.  A section with solved examples, also in Markdown and LaTeX.
-    3.  A list of two YouTube video recommendations, each with a title and a valid `youtube.com/embed/` URL.
-    4.  A short, two-question multiple-choice quiz with four options for each question.
+    Create a learning package about: {request.query}
 
-    Here is the user's query: "{request.query}"
+    JSON Schema:
+    {{
+      "explanation": "string - clear explanation with examples",
+      "examples": ["string", "string"],
+      "videos": [{{"title": "string", "url": "string (must include https://)"}}],
+      "quiz": [
+        {{
+          "question": "string",
+          "options": ["string", "string", "string"],
+          "correctAnswer": "string"
+        }}
+      ]
+    }}
 
-    Your response must be a single JSON object that strictly adheres to the provided schema.
-    The Markdown content should be clean and not contain JSON-specific escape characters.
+    Rules:
+    - Return only valid JSON, no extra text.
+    - Ensure all URLs include https://
     """
-
-    payload = {
-        "contents": [
-            {"parts": [{"text": prompt}]}
-        ],
-        "generationConfig": {
-            "responseMimeType": "application/json",
-            "responseSchema": GEMINI_RESPONSE_SCHEMA
-        }
-    }
-
-    headers = {
-        "Content-Type": "application/json"
-    }
 
     try:
-        async with httpx.AsyncClient() as client:
-            gemini_response = await call_with_retries(client, payload, headers)
-        
-        # The Gemini API response is a JSON object wrapped in a string
-        json_string = gemini_response["candidates"][0]["content"]["parts"][0]["text"]
-        
-        # We parse the string to a Python dictionary
-        parsed_response = json.loads(json_string)
+        # Call OpenRouter API
+        api_response = await call_openrouter(prompt)
 
-        # Convert the dictionary to our Pydantic model
-        return FullContentResponse.model_validate(parsed_response)
+        # Ensure choices exist
+        if "choices" not in api_response or not api_response["choices"]:
+            logging.error(f"Unexpected API response: {api_response}")
+            raise HTTPException(502, "AI service returned no choices")
 
+        ai_content = api_response["choices"][0]["message"]["content"]
+
+        # Parse and validate
+        try:
+            parsed = json.loads(ai_content)
+            return FullContentResponse.model_validate(parsed)
+        except (json.JSONDecodeError, ValueError) as e:
+            logging.error(f"Invalid AI response: {ai_content}")
+            raise HTTPException(422, "AI returned invalid format")
+
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error calling Gemini API: {e}")
-        # Return a meaningful error to the frontend
-        raise HTTPException(status_code=500, detail="Failed to generate content from AI.")
+        logging.error(f"Generation failed: {str(e)}")
+        raise HTTPException(500, "Content generation failed")
 
-# To run the server, use this command in your terminal:
-# uvicorn main:app --reload
-# Assuming this file is named 'main.py'
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "model": MODEL_NAME}
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,0 +1,38 @@
+2025-08-08 15:18:40,090 - INFO - HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 404 Not Found"
+2025-08-08 15:18:40,108 - ERROR - OpenRouter API error: {"error":{"message":"No endpoints found for deepseek/deepseek-chat:free.","code":404},"user_id":"user_310IRlLttwc2UZIW6HDHCcXrBxC"}
+2025-08-08 15:18:40,108 - ERROR - Generation failed: 502: AI service unavailable
+2025-08-08 15:20:05,864 - INFO - HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 404 Not Found"
+2025-08-08 15:20:05,865 - ERROR - OpenRouter API error: {"error":{"message":"No endpoints found for deepseek/deepseek-chat:free.","code":404},"user_id":"user_310IRlLttwc2UZIW6HDHCcXrBxC"}
+2025-08-08 15:20:05,881 - ERROR - Generation failed: 502: AI service unavailable
+2025-08-08 15:31:10,914 - INFO - HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-08-08 15:31:17,278 - ERROR - Invalid AI response: {
+  "explanation": "Photosynthesis is the process by which green plants, algae, and some bacteria convert sunlight, carbon dioxide, and water into glucose and oxygen. This process occurs in the chloroplasts of plant cells, where chlorophyll captures the sunlight. The general equation for photosynthesis is: 6CO2 + 6H2O + sunlight \u2192 C6H12O6 + 6O2. Photosynthesis is crucial for life on Earth as it produces oxygen and serves as the foundation of the food chain.",
+  "examples": [
+    "A green leaf on a tree absorbs sunlight and converts carbon dioxide from the air and water from the soil into glucose, which the tree uses for energy.",
+    "Aquatic plants like algae perform photosynthesis underwater, releasing oxygen bubbles that can be seen in aquariums or ponds."
+  ],
+  "videos": [
+    {
+      "title": "Photosynthesis - Life's Primary Energy Source",
+      "url": "youtube.com/embed/_xeYhF7d3zQ"
+    }
+  ],
+  "quiz": [
+    {
+      "question": "What is the primary pigment used in photosynthesis?",
+      "options": ["Chlorophyll", "Hemoglobin", "Melanin"],
+      "correctAnswer": "Chlorophyll"
+    },
+    {
+      "question": "Which of the following is a product of photosynthesis?",
+      "options": ["Carbon dioxide", "Oxygen", "Nitrogen"],
+      "correctAnswer": "Oxygen"
+    }
+  ]
+}
+2025-08-08 15:31:17,278 - ERROR - Generation failed: 422: AI returned invalid format
+2025-08-08 15:34:14,964 - INFO - HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-08-08 15:35:45,578 - ERROR - Generation failed: 'choices'
+2025-08-08 15:37:35,371 - INFO - HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-08-08 15:44:14,158 - INFO - HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-08-08 15:48:21,667 - INFO - HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
