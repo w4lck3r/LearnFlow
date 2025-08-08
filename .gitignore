@@ -1,0 +1,11 @@
+# Ignore environment variables
+.env
+
+# Python specific files and folders
+__pycache__/
+*.pyc
+.venv/
+
+# Node.js specific files and folders
+node_modules/
+.DS_Store
